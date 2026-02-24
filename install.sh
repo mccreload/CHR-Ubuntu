@@ -56,7 +56,7 @@ echo -e "\e[34mPreparation ...\e[0m"
 } & show_loading
 
 # Version
-CHR_VERSION=7.12
+CHR_VERSION=6.49.13
 
 # Environment
 DISK=$(lsblk | grep "disk" | head -n 1 | cut -d' ' -f1)
