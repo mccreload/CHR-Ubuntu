@@ -1,71 +1,90 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-CYAN='\033[0;36m'
-NC='\033[0m'
+# Function to display loading animation
+show_loading() {
+    local pid=$!
+    local delay=0.1
+    local spinstr='|/-\'
+    echo -n " "
+    while [ "$(ps a | awk '{print $1}' | grep $pid)" ]; do
+        local temp=${spinstr#?}
+        printf " [%c]  " "$spinstr"
+        local spinstr=$temp${spinstr%"$temp"}
+        sleep $delay
+        printf "\b\b\b\b\b\b"
+    done
+    echo " "
+}
 
-CHR_VERSION="7.12"
-CHR_FILE="chr-${CHR_VERSION}.img"
-CHR_ZIP="${CHR_FILE}.zip"
-CHR_URL="https://download.mikrotik.com/routeros/${CHR_VERSION}/${CHR_ZIP}"
+# Function to check for root access
+check_root() {
+    if [[ $EUID -ne 0 ]]; then
+        echo -e "\e[31mThis script must be run as root\e[0m"
+        exit 1
+    fi
+}
 
-echo -e "${CYAN}"
-echo "=============================================="
-echo "   MikroTik CHR Installer v${CHR_VERSION}"
-echo "   File Resmi dari MikroTik"
-echo "=============================================="
-echo -e "${NC}"
+# Function to display system details
+show_system_details() {
+    echo -e "\e[34mGathering system details...\e[0m"
+    IP=$(curl -s http://checkip.amazonaws.com)
+    RAM=$(free -m | awk '/Mem:/ { print $2 }')
+    CPU=$(lscpu | grep 'Model name' | cut -d: -f2 | xargs)
+    STORAGE=$(df -h | awk '$NF=="/"{printf "%s", $2}')
+    echo -e "\e[32mSystem Details:\nIP: $IP\nRAM: ${RAM}MB\nCPU: $CPU\nStorage: $STORAGE\e[0m"
+}
 
-if [[ $EUID -ne 0 ]]; then
-   echo -e "${RED}[ERROR] Script harus dijalankan sebagai root!${NC}"
-   exit 1
-fi
+# ASCII Banner
+echo -e "\e[33m   _____   _    _   _____                         _           \e[0m"
+echo -e "\e[33m  / ____| | |  | | |  __ \        /\             | |          \e[0m"
+echo -e "\e[33m | |      | |__| | | |__) |      /  \     _   _  | |_    ___  \e[0m"
+echo -e "\e[33m | |      |  __  | |  _  /      / /\ \   | | | | | __|  / _ \ \e[0m"
+echo -e "\e[33m | |____  | |  | | | | \ \     / ____ \  | |_| | | |_  | (_) |\e[0m"
+echo -e "\e[33m  \_____| |_|  |_| |_|  \_\   /_/    \_\  \__,_|  \__|  \___/ \e[0m"
+echo -e "\e[33m                                                                \e[0m"
+echo -e "\e[33m                    === MikroTik CHR v7.12 By MCC RELOAD===                  \e[0m"
 
-echo -e "${YELLOW}[INFO] Mendeteksi disk utama...${NC}"
-DISK=$(lsblk -d -o NAME,TYPE | grep disk | awk '{print $1}' | head -n1)
-DISK_PATH="/dev/${DISK}"
-echo -e "${GREEN}[OK] Disk ditemukan: ${DISK_PATH}${NC}"
+# Check root
+check_root
 
-echo ""
-echo -e "${RED}=============================================="
-echo " PERINGATAN !!!"
-echo " Semua data di ${DISK_PATH} akan TERHAPUS!"
-echo " Pastikan kamu punya akses VNC/Console!"
-echo -e "==============================================${NC}"
-echo ""
-read -p "Ketik 'yes' untuk lanjut: " CONFIRM
-if [[ "$CONFIRM" != "yes" ]]; then
-    echo -e "${YELLOW}Instalasi dibatalkan.${NC}"
-    exit 0
-fi
+# Show system details
+show_system_details
 
-echo -e "${YELLOW}[INFO] Menginstall dependencies...${NC}"
-apt-get update -qq
-apt-get install -y wget unzip
+echo -e "\e[34mPreparation ...\e[0m"
+{
+    apt install unzip -y > /dev/null 2>&1
+} & show_loading
 
-echo -e "${YELLOW}[INFO] Downloading CHR ${CHR_VERSION} dari server resmi MikroTik...${NC}"
-wget -O "$CHR_ZIP" "$CHR_URL"
+# Version
+CHR_VERSION=7.12
 
-if [[ $? -ne 0 ]]; then
-    echo -e "${RED}[ERROR] Gagal download!${NC}"
-    exit 1
-fi
+# Environment
+DISK=$(lsblk | grep "disk" | head -n 1 | cut -d' ' -f1)
+INTERFACE=$(ip -o -4 route show to default | awk '{print $5}')
+INTERFACE_IP=$(ip addr show $INTERFACE | grep global | cut -d' ' -f 6 | head -n 1)
+INTERFACE_GATEWAY=$(ip route show | grep default | awk '{print $3}')
 
-echo -e "${YELLOW}[INFO] Mengekstrak file...${NC}"
-unzip -o "$CHR_ZIP"
+echo -e "\e[34mDownloading MikroTik CHR v${CHR_VERSION}...\e[0m"
+{
+    wget -qO routeros.zip https://download.mikrotik.com/routeros/$CHR_VERSION/chr-$CHR_VERSION.img.zip && \
+    unzip routeros.zip > /dev/null 2>&1 && \
+    rm -rf routeros.zip
+} & show_loading
 
-echo -e "${YELLOW}[INFO] Menulis image ke ${DISK_PATH}...${NC}"
-dd if="$CHR_FILE" of="$DISK_PATH" bs=4M oflag=sync status=progress
+echo -e "\e[34mMounting image...\e[0m"
+{
+    mount -o loop,offset=512 chr-$CHR_VERSION.img /mnt > /dev/null 2>&1
+} & show_loading
 
-rm -f "$CHR_ZIP" "$CHR_FILE"
+echo "/ip address add address=${INTERFACE_IP} interface=[/interface ethernet find where name=ether1]
+/ip route add gateway=${INTERFACE_GATEWAY}
+" > /mnt/rw/autorun.scr
 
-echo ""
-echo -e "${GREEN}=============================================="
-echo " INSTALASI SELESAI!"
-echo " Login: user=admin | password=kosong"
-echo " Group: full (default resmi MikroTik)"
-echo -e "==============================================${NC}"
-sleep 5
-reboot
+echo -e "\e[34mWriting image to disk /dev/${DISK}...\e[0m"
+{
+    umount /mnt > /dev/null 2>&1
+    echo u > /proc/sysrq-trigger
+    dd if=chr-$CHR_VERSION.img of=/dev/${DISK} bs=1M > /dev/null 2>&1
+} & show_loading
+
+echo -e "\e[32mInstallation complete. Reboot your server now, Please log in and configure your password using Winbox.\e[0m"
