@@ -6,7 +6,7 @@ YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-CHR_VERSION="6.49.7"
+CHR_VERSION="7.12"
 CHR_FILE="chr-${CHR_VERSION}.img"
 CHR_ZIP="${CHR_FILE}.zip"
 CHR_URL="https://download.mikrotik.com/routeros/${CHR_VERSION}/${CHR_ZIP}"
