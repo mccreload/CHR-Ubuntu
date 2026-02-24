@@ -42,7 +42,7 @@ echo -e "\e[33m | |      |  __  | |  _  /      / /\ \   | | | | | __|  / _ \ \e[
 echo -e "\e[33m | |____  | |  | | | | \ \     / ____ \  | |_| | | |_  | (_) |\e[0m"
 echo -e "\e[33m  \_____| |_|  |_| |_|  \_\   /_/    \_\  \__,_|  \__|  \___/ \e[0m"
 echo -e "\e[33m                                                                \e[0m"
-echo -e "\e[33m                    === MikroTik CHR v7.12 By MCC RELOAD ===                  \e[0m"
+echo -e "\e[33m                    === MikroTik CHR v6.49.13 By MCC RELOAD ===                  \e[0m"
 
 # Check root
 check_root
